@@ -37,21 +37,41 @@ void Lamp::getLampVertexPositions(GLfloat* pVertices, GLfloat* pNormals)
 
 	GLfloat bottomRadius = lampTopR + lampHeight * tan(lampAngle * DEG_TO_RADIANS);
 	GLfloat coneHeight = bottomRadius / tan(lampAngle * DEG_TO_RADIANS);
+
+
+	//TOP VERTICES
+	//top center vertex
+	pVertices[0] = 0;
+	pVertices[1] = 0;
+	pVertices[2] = 0;
+	pNormals[0] = 0;
+	pNormals[1] = 1;
+	pNormals[2] = 0;
+
+	//top circumference (vertices later repeated)
+	float angle = 0;
+	for (int j = 0; j < numlongs; j++) {
+
+		//positions
+		pVertices[vertInd * 3] = cos(angle * DEG_TO_RADIANS) * lampTopR;
+		pVertices[vertInd * 3 + 1] = distanceFromTop;
+		pVertices[vertInd * 3 + 2] = sin(angle * DEG_TO_RADIANS) * lampTopR;
+
+		//normals
+		pNormals[vertInd * 3] = 0;
+		pNormals[vertInd * 3 + 1] = 1;
+		pNormals[vertInd * 3 + 2] = 0;
+
+		angle += angleStep;
+		vertInd++;
+	}
+
+
+	//SIDE VERTICES
 	for (int i = 0; i<numlats; i++) {
 		
-		
-		float angle = 0;
+		angle = 0;
 
-		//top center vertex
-		pVertices[0] = 0;
-		pVertices[1] = 0;
-		pVertices[2] = 0;
-
-		pNormals[0] = 0;//!!!
-		pNormals[1] = 1;
-		pNormals[2] = 0;
-
-		//other vertices
 		for (int j = 0; j < numlongs; j++) {
 			
 			//positions
@@ -81,8 +101,6 @@ void Lamp::getLampVertexPositions(GLfloat* pVertices, GLfloat* pNormals)
 
 		distanceFromTop -= heightStep;
 		currentRadius = currentRadius + heightStep * tan(lampAngle * DEG_TO_RADIANS);
-
-
 	}
 
 }
@@ -91,28 +109,35 @@ void Lamp::makeLamp(GLuint numlats, GLuint numlongs)
 {
 	GLuint i, j;
 	
-	GLuint numvertices = numlats * numlongs + 1;//+1 for center top
+	GLuint numvertices = 1 + numlongs + numlats * numlongs;
 
-														// Store the number of sphere vertices in an attribute because we need it later when drawing it
 	numlampvertices = numvertices;
 	this->numlats = numlats;
 	this->numlongs = numlongs;
 
-	// Create the temporary arrays to stro
+
 	GLfloat* pVertices = new GLfloat[numvertices * 3];
 	GLfloat* pColours = new GLfloat[numvertices * 4];
 	GLfloat* pNormals = new GLfloat[numvertices * 3];
 	getLampVertexPositions(pVertices, pNormals);
 
-	
 
-	//!!! red so far
+
 	for (i = 0; i < numvertices; i++)
 	{
-		pColours[i * 4] = 1.f;
-		pColours[i * 4 + 1] = 0;
-		pColours[i * 4 + 2] = 0;
-		pColours[i * 4 + 3] = 1.f;
+		if (i < 1 + numlongs) {//top grey
+			pColours[i * 4] = 0.5f;
+			pColours[i * 4 + 1] = 0.5f;
+			pColours[i * 4 + 2] = 0.5f;
+			pColours[i * 4 + 3] = 1.f;
+		}
+		else {//side red
+			pColours[i * 4] = 1.f;
+			pColours[i * 4 + 1] = 0;
+			pColours[i * 4 + 2] = 0;
+			pColours[i * 4 + 3] = 1.f;
+		}
+		
 	}
 
 	glGenBuffers(1, &lampBufferObject);
@@ -144,7 +169,7 @@ void Lamp::makeLamp(GLuint numlats, GLuint numlongs)
 
 	//strips on side!
 	i++;
-	int currRow = 0;
+	int currRow = 1;
 	for (int g = 0; g < numlats - 1; g++) {
 		for (int k = 1;k <= numlongs;k++) {
 			pindices[i] = currRow*numlongs + k;
