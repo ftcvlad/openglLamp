@@ -19,8 +19,10 @@ uniform mat4 model, view, projection;
 uniform mat3 normalmatrix;
 uniform uint colourmode, emitmode, objectType;
 uniform vec4 lightpos;
+uniform vec4 lightdir;
 
 out vec3 light_pos3;
+out vec3 lightDirection;
 
 
 
@@ -31,6 +33,7 @@ void main()
 	vec4 position_h = vec4(position, 1.0);	// Convert the (x,y,z) position to homogeneous coords (x,y,z,w)
 	vec4 diffuse_albedo;					// This is the vertex colour, used to handle the colourmode change
 	light_pos3 = lightpos.xyz;			
+	lightDirection = lightdir.xyz;
 
 	// Switch the vertex colour based on the colourmode
 	if (colourmode == 0)
@@ -57,8 +60,11 @@ void main()
 			
 		}
 	}
-	else{//floor
-		diffuse_albedo = vec4(1,0,0,1);
+	else if (objectType == 2){//floor
+		diffuse_albedo = vec4(1,1,0,0.5);
+	}
+	else if (objectType == 3){
+		diffuse_albedo = vec4(colour.x, colour.y, colour.z, 1);
 	}
 
 	

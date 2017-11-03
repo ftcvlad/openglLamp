@@ -34,6 +34,7 @@ if you prefer */
 #include "line.h"
 #include "floor.h"
 #include "cube.h"
+#include "bulb.h"
 /* Define buffer object indices */
 GLuint elementbuffer;
 
@@ -56,7 +57,7 @@ GLuint numlats, numlongs;	//Define the resolution of the sphere object
 GLfloat light_x, light_y, light_z;
 
 /* Uniforms*/
-GLuint modelID, viewID, projectionID, lightposID, normalmatrixID;
+GLuint modelID, viewID, projectionID, lightposID, normalmatrixID, lightdirID;
 GLuint colourmodeID, emitmodeID, objectTypeID;
 
 GLfloat aspect_ratio;		/* Aspect ratio of the window defined in the reshape callback*/
@@ -67,6 +68,8 @@ Sphere aSphere;
 Lamp aLamp;
 Floor aFloor;
 Cube aCube;
+Bulb aBulb;
+
 using namespace std;
 using namespace glm;
 
@@ -117,21 +120,31 @@ void init(GLWrapper *glw)
 	projectionID = glGetUniformLocation(program, "projection");
 	lightposID = glGetUniformLocation(program, "lightpos");
 	normalmatrixID = glGetUniformLocation(program, "normalmatrix");
+	lightdirID = glGetUniformLocation(program, "lightdir");
 
 	/* create our sphere and cube objects */
 	aSphere.makeSphere(numlats, numlongs);
 	aLamp.makeLamp(40, 80);
 	aFloor.makeFloor();
 	//aCube.makeCube();
-	
+	aBulb.loadBulb();
+
+	// Enable blending
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
 }
 
 /* Called to update the display. Note that this function is called in the event loop in the wrapper
    class because we registered display as a callback function */
 void display()
 {
+
+	
+
+
 	/* Define the background colour */
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
 	/* Clear the colour and frame buffers */
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -198,34 +211,65 @@ void display()
 	//model.pop();
 
 
-	//SMALL SPHERE
+	////SMALL SPHERE
+	//model.push(model.top());
+	//{
+	//	//model.top() = translate(model.top(), vec3(1.f, y, z));
+	//	model.top() = translate(model.top(), vec3(light_x, light_y, light_z));
+	//	model.top() = scale(model.top(), vec3(0.05f, 0.05f, 0.05f)); // make a small sphere
+
+
+	//	// Define the light position and transform by the view matrix
+	//	vec4 lightpos = view * model.top() *  vec4(light_x, light_y, light_z, 1.0);
+	//	glUniform4fv(lightposID, 1, value_ptr(lightpos));
+
+
+	//	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+	//	normalmatrix = transpose(inverse(mat3(view * model.top())));
+	//	glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+
+	//	/* Draw our lightposition sphere  with emit mode on*/
+	//	emitmode = 1;
+	//	glUniform1ui(emitmodeID, emitmode);
+	//	aSphere.drawSphere(drawmode);
+	//	emitmode = 0;
+	//	glUniform1ui(emitmodeID, emitmode);
+	//}
+	//model.pop();
+	
+
+	//BULB
 	model.push(model.top());
 	{
-		//model.top() = translate(model.top(), vec3(1.f, y, z));
 		model.top() = translate(model.top(), vec3(light_x, light_y, light_z));
-		model.top() = scale(model.top(), vec3(0.05f, 0.05f, 0.05f)); // make a small sphere
-
+		
+		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
+		
+		
+		//vec4 lightDirection = view * model.top() * vec4(0, -1, 0, 1.0);
+		vec4 lightDirection = vec4(0, -1, 0, 1.0);
+		glUniform4fv(lightdirID, 1, value_ptr(lightDirection));
 
 		// Define the light position and transform by the view matrix
 		vec4 lightpos = view * model.top() *  vec4(light_x, light_y, light_z, 1.0);
 		glUniform4fv(lightposID, 1, value_ptr(lightpos));
 
+		
+
+
+		model.top() = rotate(model.top(), 180.0f, glm::vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
+		//model.top() = rotate(model.top(), -angle_y, glm::vec3(0, 1, 0)); //rotating in clockwise direction around y-axis
+		//model.top() = rotate(model.top(), -angle_z, glm::vec3(0, 0, 1)); //rotating in clockwise direction around z-axis
 
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
 		normalmatrix = transpose(inverse(mat3(view * model.top())));
 		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
 
-		/* Draw our lightposition sphere  with emit mode on*/
-		emitmode = 1;
-		glUniform1ui(emitmodeID, emitmode);
-		aSphere.drawSphere(drawmode);
-		emitmode = 0;
-		glUniform1ui(emitmodeID, emitmode);
+		glUniform1ui(objectTypeID, 3);
+		aBulb.drawBulb(drawmode, emitmodeID);
+
 	}
 	model.pop();
-	
-
-
 
 	
 

@@ -6,6 +6,7 @@ in vec4 fcolour;
 out vec4 outputColor;
 in vec3 N;//mv + normalized 
 in vec3 light_pos3;
+in vec3 lightDirection;
 in vec4 P;//mv 
 int  shininess = 8;
 
@@ -47,7 +48,7 @@ void main()
 	if (emitmode == 1) emissive = vec3(1.0, 1.0, 0.8); 
 
 
-	vec3 lightDirection = vec3(0,-1,0);
+	
 	float cutoffAngleCos = cos(radians(45));
 	float fullBrightnessAngleCos = cos(radians(30));
 	
@@ -55,7 +56,7 @@ void main()
 	//total
 	float lightDirLCos = dot(-L, lightDirection);
 
-	if ( lightDirLCos>= cutoffAngleCos){
+	if ( lightDirLCos>= cutoffAngleCos ){
 		float coneAttenuation = 1;
 		if (lightDirLCos <= fullBrightnessAngleCos){
 			coneAttenuation = (lightDirLCos -  cutoffAngleCos) / (fullBrightnessAngleCos - cutoffAngleCos);
@@ -63,11 +64,12 @@ void main()
 
 		
 
-		outputColor = vec4(attenuation*(ambient + coneAttenuation * (diffuse + specular))+global_ambient+emissive, 1.0);
+		outputColor = vec4(attenuation*(ambient + coneAttenuation * (diffuse + specular))+global_ambient+emissive, fcolour.w);
 	}
 	else{
-		outputColor = vec4(attenuation*(ambient)+global_ambient+emissive, 1.0);
+		outputColor = vec4(attenuation*(ambient)+global_ambient+emissive, fcolour.w);
 	}
+
 
 
 	
