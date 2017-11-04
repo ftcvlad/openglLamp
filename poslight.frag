@@ -23,7 +23,8 @@ void main()
 
 	vec3 L = light_pos3 - P.xyz;//why if done in vertex shader does not work?????1		
 	float distanceToLight = length(L);	
-	L = normalize(L);					
+	L = normalize(L);		
+	vec3 LD = normalize(lightDirection);		
 	
 	//ambient
 	vec3 ambient = fcolour.xyz *0.2;
@@ -54,7 +55,7 @@ void main()
 	
 
 	//total
-	float lightDirLCos = dot(-L, lightDirection);
+	float lightDirLCos = dot(-L, LD);
 
 	if ( lightDirLCos>= cutoffAngleCos ){
 		float coneAttenuation = 1;

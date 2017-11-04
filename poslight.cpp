@@ -49,12 +49,13 @@ GLuint objectType;
 GLuint emitmode;
 
 /* Position and view globals */
-GLfloat angle_x, angle_inc_x, x, model_scale, z, y, vx, vy, vz;
+GLfloat angle_x, angle_inc_x, x, model_scale, z, y, vx, vy, vz, zAxRotationLamp;
 GLfloat angle_y, angle_inc_y, angle_z, angle_inc_z;
+
 GLuint drawmode;			// Defines drawing mode of sphere as points, lines or filled polygons
 GLuint numlats, numlongs;	//Define the resolution of the sphere object
 
-GLfloat light_x, light_y, light_z;
+GLfloat bulbMoveX, bulbMoveY, bulbMoveZ;
 
 /* Uniforms*/
 GLuint modelID, viewID, projectionID, lightposID, normalmatrixID, lightdirID;
@@ -84,7 +85,7 @@ void init(GLWrapper *glw)
 	y = 0;
 	z = 0;
 	vx = 0; vx = 0, vz = 0.f;
-	light_x = 0; light_y = 0; light_z = 0;
+	bulbMoveX = 0; bulbMoveY = 0; bulbMoveZ = 0;
 	angle_x = angle_y = angle_z = 0;
 	angle_inc_x = angle_inc_y = angle_inc_z = 0;
 	model_scale = 1.f;
@@ -92,6 +93,7 @@ void init(GLWrapper *glw)
 	colourmode = 0; emitmode = 0;
 	numlats = 200;		// Number of latitudes in our sphere
 	numlongs = 200;		// Number of longitudes in our sphere
+	zAxRotationLamp = 0;
 
 	// Generate index (name) for one vertex array object
 	glGenVertexArrays(1, &vao);
@@ -127,7 +129,7 @@ void init(GLWrapper *glw)
 	aLamp.makeLamp(40, 80);
 	aFloor.makeFloor();
 	//aCube.makeCube();
-	aBulb.loadBulb();
+	//aBulb.loadBulb();
 
 	// Enable blending
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -211,75 +213,32 @@ void display()
 	//model.pop();
 
 
-	////SMALL SPHERE
-	//model.push(model.top());
-	//{
-	//	//model.top() = translate(model.top(), vec3(1.f, y, z));
-	//	model.top() = translate(model.top(), vec3(light_x, light_y, light_z));
-	//	model.top() = scale(model.top(), vec3(0.05f, 0.05f, 0.05f)); // make a small sphere
-
-
-	//	// Define the light position and transform by the view matrix
-	//	vec4 lightpos = view * model.top() *  vec4(light_x, light_y, light_z, 1.0);
-	//	glUniform4fv(lightposID, 1, value_ptr(lightpos));
-
-
-	//	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-	//	normalmatrix = transpose(inverse(mat3(view * model.top())));
-	//	glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
-
-	//	/* Draw our lightposition sphere  with emit mode on*/
-	//	emitmode = 1;
-	//	glUniform1ui(emitmodeID, emitmode);
-	//	aSphere.drawSphere(drawmode);
-	//	emitmode = 0;
-	//	glUniform1ui(emitmodeID, emitmode);
-	//}
-	//model.pop();
+	
 	
 
-	//BULB
+	//LAMP and BULB transformations
 	model.push(model.top());
 	{
-		model.top() = translate(model.top(), vec3(light_x, light_y, light_z));
-		
-		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
-		
-		
-		//vec4 lightDirection = view * model.top() * vec4(0, -1, 0, 1.0);
-		vec4 lightDirection = vec4(0, -1, 0, 1.0);
+
+		mat4 totalRotation = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+
+		model.top() = translate(model.top(), vec3(x, y + 1, z));
+		model.top() = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+
+
+		vec4 lightDirection = totalRotation * vec4(0, -1, 0, 1.0);//only model rotations apply
+		cout << lightDirection.x << " " << lightDirection.y << " " << lightDirection.z << endl;
 		glUniform4fv(lightdirID, 1, value_ptr(lightDirection));
 
-		// Define the light position and transform by the view matrix
-		vec4 lightpos = view * model.top() *  vec4(light_x, light_y, light_z, 1.0);
-		glUniform4fv(lightposID, 1, value_ptr(lightpos));
-
 		
-
-
-		model.top() = rotate(model.top(), 180.0f, glm::vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
-		//model.top() = rotate(model.top(), -angle_y, glm::vec3(0, 1, 0)); //rotating in clockwise direction around y-axis
-		//model.top() = rotate(model.top(), -angle_z, glm::vec3(0, 0, 1)); //rotating in clockwise direction around z-axis
-
-		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-		normalmatrix = transpose(inverse(mat3(view * model.top())));
-		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
-
-		glUniform1ui(objectTypeID, 3);
-		aBulb.drawBulb(drawmode, emitmodeID);
-
+		
 	}
-	model.pop();
-
-	
 
 	// LAMP
 	model.push(model.top());
 	{
-		
-		model.top() = translate(model.top(), vec3(x, y+1, z));
 		model.top() = scale(model.top(), vec3(0.5f, 0.5f, 0.5f));//scale equally in all axis
-		
+
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
 		glUniform1ui(objectTypeID, 1);
 		
@@ -289,6 +248,77 @@ void display()
 		aLamp.drawLamp(drawmode);
 	}
 	model.pop();
+
+
+	//BULB
+	model.push(model.top());
+	{
+		
+
+		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
+		model.top() = translate(model.top(), vec3(bulbMoveX, bulbMoveY, bulbMoveZ));
+
+	
+
+		// Define the light position and transform by the view matrix
+		//vec4 lightpos = view * model.top() *  vec4(light_x, light_y, light_z, 1.0);
+		vec4 lightpos = view * model.top() *  vec4(0, 1, 0, 1.0);//initially it was at 0, then depends on bulb's transformations
+		glUniform4fv(lightposID, 1, value_ptr(lightpos));
+
+
+
+
+		model.top() = rotate(model.top(), 180.0f, glm::vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
+																	   //model.top() = rotate(model.top(), -angle_y, glm::vec3(0, 1, 0)); //rotating in clockwise direction around y-axis
+																	   //model.top() = rotate(model.top(), -angle_z, glm::vec3(0, 0, 1)); //rotating in clockwise direction around z-axis
+
+		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+		normalmatrix = transpose(inverse(mat3(view * model.top())));
+		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+
+		glUniform1ui(objectTypeID, 3);
+		//aBulb.drawBulb(drawmode, emitmodeID);
+
+
+		//mark sphere
+		
+		//model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
+		//glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+		//normalmatrix = transpose(inverse(mat3(view * model.top())));
+		//glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+
+		//aSphere.drawSphere(1);
+
+	}
+	model.pop();
+
+	////SMALL SPHERE
+	//model.push(model.top());
+	//{
+	//	//model.top() = translate(model.top(), vec3(1.f, y, z));
+	//	model.top() = translate(model.top(), vec3(light_x, light_y, light_z));
+	//	model.top() = scale(model.top(), vec3(0.05f, 0.05f, 0.05f)); // make a small sphere
+
+	//	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+	//	normalmatrix = transpose(inverse(mat3(view * model.top())));
+	//	glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+
+	//	aSphere.drawSphere(1);
+
+	//}
+	//model.pop();
+
+
+
+
+	model.pop();//lamp and bulb transformations
+
+
+
+	
+
+
+
 
 	//FLOOR
 	model.push(model.top());
@@ -365,18 +395,21 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 	if (key == 'V') y += 0.05f;
 	if (key == 'B') z -= 0.05f;
 	if (key == 'N') z += 0.05f;
-	if (key == '1') light_x -= 0.05f;
-	if (key == '2') light_x += 0.05f;
-	if (key == '3') light_y -= 0.05f;
-	if (key == '4') light_y += 0.05f;
-	if (key == '5') light_z -= 0.05f;
-	if (key == '6') light_z += 0.05f;
+	if (key == '1') bulbMoveX -= 0.05f;
+	if (key == '2') bulbMoveX += 0.05f;
+	if (key == '3') bulbMoveY -= 0.05f;
+	if (key == '4') bulbMoveY += 0.05f;
+	if (key == '5') bulbMoveZ -= 0.05f;
+	if (key == '6') bulbMoveZ += 0.05f;
 	if (key == '7') vx -= 1.f;
 	if (key == '8') vx += 1.f;
 	if (key == '9') vy -= 1.f;
 	if (key == '0') vy += 1.f;
 	if (key == 'O') vz -= 1.f;
 	if (key == 'P') vz += 1.f;
+
+	if (key == 'D') zAxRotationLamp -= 0.5f;
+	if (key == 'F') zAxRotationLamp += 0.5f;
 
 	if (key == 'M' && action != GLFW_PRESS)
 	{
