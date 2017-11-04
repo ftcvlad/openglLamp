@@ -27,7 +27,7 @@ if you prefer */
 #include <glm/glm.hpp>
 #include "glm/gtc/matrix_transform.hpp"
 #include <glm/gtc/type_ptr.hpp>
-
+#include <string>
 // Include headers for our objects
 #include "sphere.h"
 #include "lamp.h"
@@ -35,6 +35,7 @@ if you prefer */
 #include "floor.h"
 #include "cube.h"
 #include "bulb.h"
+#include "wire.h"
 /* Define buffer object indices */
 GLuint elementbuffer;
 
@@ -70,6 +71,7 @@ Lamp aLamp;
 Floor aFloor;
 Cube aCube;
 Bulb aBulb;
+Wire aWire;
 
 using namespace std;
 using namespace glm;
@@ -81,7 +83,7 @@ Use it for all your initialisation stuff
 void init(GLWrapper *glw)
 {
 	/* Set the object transformation controls to their initial values */
-	x = 0.05f;
+	x = 0;
 	y = 0;
 	z = 0;
 	vx = 0; vx = 0, vz = 0.f;
@@ -117,12 +119,19 @@ void init(GLWrapper *glw)
 	modelID = glGetUniformLocation(program, "model");
 	colourmodeID = glGetUniformLocation(program, "colourmode");
 	objectTypeID = glGetUniformLocation(program, "objectType");
+	//1 lamp outer surface
+	//2 floor
+	//3 bulb glass
+	//4 lamp inner surface
+	//5 wire
+
 	emitmodeID = glGetUniformLocation(program, "emitmode");
 	viewID = glGetUniformLocation(program, "view");
 	projectionID = glGetUniformLocation(program, "projection");
 	lightposID = glGetUniformLocation(program, "lightpos");
 	normalmatrixID = glGetUniformLocation(program, "normalmatrix");
 	lightdirID = glGetUniformLocation(program, "lightdir");
+	
 
 	/* create our sphere and cube objects */
 	aSphere.makeSphere(numlats, numlongs);
@@ -130,6 +139,7 @@ void init(GLWrapper *glw)
 	aFloor.makeFloor();
 	//aCube.makeCube();
 	//aBulb.loadBulb();
+	aWire.makeWire(40,30);
 
 	// Enable blending
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -189,11 +199,10 @@ void display()
 	glUniformMatrix4fv(viewID, 1, GL_FALSE, &view[0][0]);
 	glUniformMatrix4fv(projectionID, 1, GL_FALSE, &projection[0][0]);
 	
-
+	
+	Line::drawLine(0, 3, 0, 0, 0, 0, "line1", modelID);
 
 	
-	Line::drawLine(0, 0, 0, 3, 0, 0, "line2");
-
 	// Define the global model transformations (rotate and scale). Note, we're not modifying thel ight source position
 	model.top() = scale(model.top(), vec3(model_scale, model_scale, model_scale));//scale equally in all axis
 	model.top() = rotate(model.top(), -angle_x, glm::vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
@@ -212,22 +221,45 @@ void display()
 	//}
 	//model.pop();
 
+	
+
 
 	
-	
+	// WIRE
+	model.push(model.top());
+	{
+		
+		model.top() = translate(model.top(), vec3(x, y + 1 + aWire.getWireLength(), z));
+		model.top() = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+		
+		
+
+		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+		
+		glUniform1ui(objectTypeID, 5);
+		
+		normalmatrix = transpose(inverse(mat3(view * model.top())));
+		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+
+		aWire.drawWire(drawmode);
+	}
+	model.pop();
+
 
 	//LAMP and BULB transformations
 	model.push(model.top());
 	{
 
 		mat4 totalRotation = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
-
-		model.top() = translate(model.top(), vec3(x, y + 1, z));
+		
+		model.top() = translate(model.top(), vec3(x, y + 1 + aWire.getWireLength(), z));
 		model.top() = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+		model.top() = translate(model.top(), vec3(x, y- aWire.getWireLength(), z));
+		
 
 
 		vec4 lightDirection = totalRotation * vec4(0, -1, 0, 1.0);//only model rotations apply
-		cout << lightDirection.x << " " << lightDirection.y << " " << lightDirection.z << endl;
+		//cout << lightDirection.x << " " << lightDirection.y << " " << lightDirection.z << endl;
 		glUniform4fv(lightdirID, 1, value_ptr(lightDirection));
 
 		
@@ -245,7 +277,7 @@ void display()
 		normalmatrix = transpose(inverse(mat3(view * model.top())));
 		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
 
-		aLamp.drawLamp(drawmode);
+		aLamp.drawLamp(drawmode, objectTypeID);
 	}
 	model.pop();
 
@@ -254,9 +286,10 @@ void display()
 	model.push(model.top());
 	{
 		
-
-		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
+		model.top() = translate(model.top(), vec3(0, -0.4, 0));
 		model.top() = translate(model.top(), vec3(bulbMoveX, bulbMoveY, bulbMoveZ));
+		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
+		
 
 	
 
@@ -280,33 +313,13 @@ void display()
 		//aBulb.drawBulb(drawmode, emitmodeID);
 
 
-		//mark sphere
-		
-		//model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
-		//glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-		//normalmatrix = transpose(inverse(mat3(view * model.top())));
-		//glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
 
-		//aSphere.drawSphere(1);
 
 	}
 	model.pop();
+	
+	Line::drawLine(0, 0, 0, 3, 0, 0, "line2", modelID);
 
-	////SMALL SPHERE
-	//model.push(model.top());
-	//{
-	//	//model.top() = translate(model.top(), vec3(1.f, y, z));
-	//	model.top() = translate(model.top(), vec3(light_x, light_y, light_z));
-	//	model.top() = scale(model.top(), vec3(0.05f, 0.05f, 0.05f)); // make a small sphere
-
-	//	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-	//	normalmatrix = transpose(inverse(mat3(view * model.top())));
-	//	glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
-
-	//	aSphere.drawSphere(1);
-
-	//}
-	//model.pop();
 
 
 
@@ -325,7 +338,7 @@ void display()
 	{
 
 		model.top() = translate(model.top(), vec3(x, y-0.5, z));
-		model.top() = scale(model.top(), vec3(2, 1, 2));//death #1
+		model.top() = scale(model.top(), vec3(20, 1, 20));//death #1
 
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
 		glUniform1ui(objectTypeID, 2);//floor
@@ -364,6 +377,7 @@ void display()
 	angle_y += angle_inc_y;
 	angle_z += angle_inc_z;
 }
+
 
 /* Called whenever the window is resized. The new window size is given, in pixels. */
 static void reshape(GLFWwindow* window, int w, int h)

@@ -3,14 +3,16 @@
 #include "line.h"
 #include <iostream>
 #include <string>
+
 using namespace std;
 
 static map<std::string, Line> allLines;
 
 Line::Line()
 {
-	attribute_v_coord_line = 0;
-	attribute_v_colours_line = 1;
+	attribute_v_coord = 0;
+	attribute_v_colours = 1;
+	attribute_v_normal = 2;
 }
 
 Line::~Line()
@@ -39,11 +41,26 @@ void Line::makeLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, 
 	pColors[6] = 0;
 	pColors[7] = 1.f;
 
+
+	//GLfloat* pNormals = new GLfloat[6];
+	//pColors[0] = 1;
+	//pColors[1] = 0;
+	//pColors[2] = 0;
+	//pColors[3] = 1;
+	//pColors[4] = 0;
+	//pColors[5] = 0;
+	
+
+
 	glGenBuffers(1, &lineBufferObject);
 	glBindBuffer(GL_ARRAY_BUFFER, lineBufferObject);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)* 2*3, pVertices, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+	//glGenBuffers(1, &lineNormalsBufferObject);
+	//glBindBuffer(GL_ARRAY_BUFFER, lineNormalsBufferObject);
+	//glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 2 * 3, pNormals, GL_STATIC_DRAW);
+	//glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &lineColours);
 	glBindBuffer(GL_ARRAY_BUFFER, lineColours);
@@ -52,12 +69,14 @@ void Line::makeLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, 
 
 	delete pColors;
 	delete pVertices;
+
+	
 }
 
 
 
 
-void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1, string name)
+void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1, string name, GLuint modelID)
 {
 
 	
@@ -73,22 +92,27 @@ void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, 
 	
 	/* Draw the vertices as GL_POINTS */
 	glBindBuffer(GL_ARRAY_BUFFER, l.lineBufferObject);
-	glVertexAttribPointer(l.attribute_v_coord_line, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(l.attribute_v_coord_line);
+	glVertexAttribPointer(l.attribute_v_coord, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(l.attribute_v_coord);
 
+	///* Draw the vertices as GL_POINTS */
+	//glBindBuffer(GL_ARRAY_BUFFER, l.lineNormalsBufferObject);
+	//glVertexAttribPointer(l.attribute_v_normal, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	//glEnableVertexAttribArray(l.attribute_v_normal);
 
 	/* Bind the sphere colours */
 	glBindBuffer(GL_ARRAY_BUFFER, l.lineColours);
-	glVertexAttribPointer(l.attribute_v_colours_line, 4, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(l.attribute_v_colours_line);
+	glVertexAttribPointer(l.attribute_v_colours, 4, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(l.attribute_v_colours);
 
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	
 
-
+	
 	glBindBuffer(GL_ARRAY_BUFFER, l.lineBufferObject);
 
+	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(glm::mat4(1)[0][0]));
 	glDrawArrays(GL_LINES, 0, 6);
 
 

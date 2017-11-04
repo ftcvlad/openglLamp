@@ -12,8 +12,8 @@ public:
 	~Lamp();
 
 	void makeLamp(GLuint numlats, GLuint numlongs);
-	void getLampVertexPositions(GLfloat* pVertices, GLfloat* pNormals);
-	void drawLamp(int drawmode);
+	void getLampVertexPositions(GLfloat* pVertices, GLfloat* pNormals, GLfloat* pColours);
+	void drawLamp(int drawmode, GLuint objectTypeID);
 
 private:
 	// Define vertex buffer object names (e.g as globals)

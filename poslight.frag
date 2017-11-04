@@ -8,6 +8,8 @@ in vec3 N;//mv + normalized
 in vec3 light_pos3;
 in vec3 lightDirection;
 in vec4 P;//mv 
+
+in float lampInnerSurface;
 int  shininess = 8;
 
 
@@ -50,21 +52,21 @@ void main()
 
 
 	
-	float cutoffAngleCos = cos(radians(45));
-	float fullBrightnessAngleCos = cos(radians(30));
+	float cutoffAngleCos = cos(radians(35));
+	float fullBrightnessAngleCos = cos(radians(20));
 	
 
 	//total
 	float lightDirLCos = dot(-L, LD);
-
-	if ( lightDirLCos>= cutoffAngleCos ){
+	
+	if (lampInnerSurface == 1){//on inner surface behaves as point light
+		outputColor = vec4(attenuation*(ambient + (diffuse + specular))+global_ambient, fcolour.w);
+	}
+	else if ( lightDirLCos>= cutoffAngleCos ){
 		float coneAttenuation = 1;
 		if (lightDirLCos <= fullBrightnessAngleCos){
 			coneAttenuation = (lightDirLCos -  cutoffAngleCos) / (fullBrightnessAngleCos - cutoffAngleCos);
 		}
-
-		
-
 		outputColor = vec4(attenuation*(ambient + coneAttenuation * (diffuse + specular))+global_ambient+emissive, fcolour.w);
 	}
 	else{

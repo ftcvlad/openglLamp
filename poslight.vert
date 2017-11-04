@@ -24,7 +24,7 @@ uniform vec4 lightdir;
 out vec3 light_pos3;
 out vec3 lightDirection;
 
-
+out float lampInnerSurface;
 
 void main()
 {
@@ -46,20 +46,12 @@ void main()
 
 	N = normalize(normalmatrix * normal);// Modify the normals by the normal-matrix (i.e. to model-view (or eye) coordinates )
 	
-	if (objectType == 1){//lamp
-		
-		vec3 viewVector = normalize(vec3(0,0,-4));
-		//-0.2 and not 0 because with 0 edge normals would be colored incorrectly. trial and error -0.2 :)
-		//what if different lamp parameters???
-		if (dot(viewVector, N) >= -0.2){
-			diffuse_albedo = colour;
-			N = N *-1;
-		}
-		else {
-			diffuse_albedo = vec4(0,0,1,1);
-			
-		}
-	}
+	
+	diffuse_albedo = colour;
+	lampInnerSurface = 0;
+	if (objectType == 4){
+		lampInnerSurface = 1.0;
+	}	
 	else if (objectType == 2){//floor
 		diffuse_albedo = vec4(1,1,0,0.5);
 	}
