@@ -28,6 +28,7 @@ if you prefer */
 #include "glm/gtc/matrix_transform.hpp"
 #include <glm/gtc/type_ptr.hpp>
 #include <string>
+#include <time.h>    
 // Include headers for our objects
 #include "sphere.h"
 #include "lamp.h"
@@ -73,6 +74,21 @@ Cube aCube;
 Bulb aBulb;
 Wire aWire;
 
+
+//swinging
+bool lampSwinging = false;
+int t2 = 0;
+clock_t previousT = NULL;
+clock_t currentT = NULL;
+float maxAngle;
+float PI = 3.1415926;
+float g = 9.8;
+float swingTimeCoefficient = 1600.0;
+float swingStopCoefficient = 300.0;
+float swingT;
+
+
+
 using namespace std;
 using namespace glm;
 
@@ -95,7 +111,7 @@ void init(GLWrapper *glw)
 	colourmode = 0; emitmode = 0;
 	numlats = 200;		// Number of latitudes in our sphere
 	numlongs = 200;		// Number of longitudes in our sphere
-	zAxRotationLamp = 0;
+	zAxRotationLamp = 65.0;
 
 	// Generate index (name) for one vertex array object
 	glGenVertexArrays(1, &vao);
@@ -140,19 +156,43 @@ void init(GLWrapper *glw)
 	//aCube.makeCube();
 	//aBulb.loadBulb();
 	aWire.makeWire(40,30);
-
+	swingT = 2 * PI * glm::sqrt(aWire.getWireLength() / g);
 	// Enable blending
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
 }
 
+
+
+  
+
+
+void calcNewPendulumAngle() {
+	
+	if (previousT == NULL) previousT = clock();
+	currentT = clock();
+	t2 = t2 + (currentT - previousT);
+
+	
+	zAxRotationLamp = glm::degrees(glm::radians(maxAngle)*cos(2 * PI / swingT * (t2 / swingTimeCoefficient)));
+	
+	maxAngle -= (currentT - previousT) / swingStopCoefficient * (maxAngle>0? 1:-1);
+
+	if (glm::abs(maxAngle) < 0.1) {
+		maxAngle = 0;
+		zAxRotationLamp = 0;
+		lampSwinging = false;
+	}
+	previousT = currentT;
+}
+
+
+
 /* Called to update the display. Note that this function is called in the event loop in the wrapper
    class because we registered display as a callback function */
 void display()
 {
-
-	
 
 
 	/* Define the background colour */
@@ -228,9 +268,14 @@ void display()
 	// WIRE
 	model.push(model.top());
 	{
+	
+		if (lampSwinging) {
+			calcNewPendulumAngle();
+		}
 		
+
 		model.top() = translate(model.top(), vec3(x, y + 1 + aWire.getWireLength(), z));
-		model.top() = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+		model.top() = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
 		
 		
 
@@ -250,16 +295,16 @@ void display()
 	model.push(model.top());
 	{
 
-		mat4 totalRotation = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+		mat4 totalRotation = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
 		
 		model.top() = translate(model.top(), vec3(x, y + 1 + aWire.getWireLength(), z));
-		model.top() = rotate(model.top(), -zAxRotationLamp, glm::vec3(0, 0, 1));
+		model.top() = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
 		model.top() = translate(model.top(), vec3(x, y- aWire.getWireLength(), z));
 		
 
 
 		vec4 lightDirection = totalRotation * vec4(0, -1, 0, 1.0);//only model rotations apply
-		//cout << lightDirection.x << " " << lightDirection.y << " " << lightDirection.z << endl;
+		
 		glUniform4fv(lightdirID, 1, value_ptr(lightDirection));
 
 		
@@ -350,23 +395,6 @@ void display()
 	}
 	model.pop();
 	
-	// This block of code draws the sphere
-	//model.push(model.top());
-	//{
-	//	model.top() = translate(model.top(), vec3(-x - 0.5f, 0, 0));
-	//	model.top() = scale(model.top(), vec3(model_scale / 3.f, model_scale / 3.f, model_scale / 3.f));//scale equally in all axis
-	//																						
-	//	// Recalculate the normal matrix and send the model and normal matrices to the vertex shader																							// Recalculate the normal matrix and send to the vertex shader																								// Recalculate the normal matrix and send to the vertex shader																								// Recalculate the normal matrix and send to the vertex shader																						// Recalculate the normal matrix and send to the vertex shader
-	//	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-	//	normalmatrix = transpose(inverse(mat3(view * model.top())));
-	//	glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
-
-	//	aSphere.drawSphere(drawmode); // Draw our sphere
-	//}
-	//model.pop();
-
-
-	//draw axes
 
 	
 	glDisableVertexAttribArray(0);
@@ -422,13 +450,23 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 	if (key == 'O') vz -= 1.f;
 	if (key == 'P') vz += 1.f;
 
-	if (key == 'D') zAxRotationLamp -= 0.5f;
-	if (key == 'F') zAxRotationLamp += 0.5f;
+	if (key == 'D' && lampSwinging == false) zAxRotationLamp -= 0.5f;
+	if (key == 'F' && lampSwinging == false) zAxRotationLamp += 0.5f;
+	if (key == 'L' && action != GLFW_PRESS) {
+		lampSwinging = !lampSwinging;
+		if (lampSwinging == true) {
+			maxAngle = zAxRotationLamp;
+
+			t2 = 0;
+			previousT = NULL;
+			currentT = NULL;
+			
+		}
+	}
 
 	if (key == 'M' && action != GLFW_PRESS)
 	{
 		colourmode = !colourmode;
-		cout << "colourmode=" << colourmode << endl;
 	}
 
 	/* Cycle between drawing vertices, mesh and filled polygons */
