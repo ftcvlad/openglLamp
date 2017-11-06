@@ -257,6 +257,7 @@ void calcNewPendulumAngle() {
    class because we registered display as a callback function */
 vec4 lightpos;
 vec4 lightDirection;
+mat4 totalRotation;
 void display()
 {
 	bindTextureAsRenderTarget();
@@ -265,12 +266,13 @@ void display()
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
 	/* Clear the colour and frame buffers */
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClear(GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glClear(GL_DEPTH_BUFFER_BIT);
 	/* Enable depth test  */
 	glEnable(GL_DEPTH_TEST);
 
 	//---------------------------------------------------------------
+	//cout << lightpos.x << " " << lightpos.y << " " << lightpos.z << endl;
 	mat4 initialView = lookAt(
 		vec3(0, 0, 4), // Camera is at (0,0,4), in World Space
 		vec3(0, 0, 0), // and looks at the origin
@@ -287,28 +289,38 @@ void display()
 	renderAllObjects(program, observerView, false, modelID);
 	
 	
-	////RENDER TO SHADOWMAP
+	//////RENDER TO SHADOWMAP
 
 
-	//bindTextureAsRenderTarget();
-	//glClear(GL_DEPTH_BUFFER_BIT);
+	////bindTextureAsRenderTarget();
+	////glClear(GL_DEPTH_BUFFER_BIT);
 
 
 	bindScreenAsRenderTarget();//!
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
+
 	
 
-	//mat4 lightView = lookAt(
-	//	vec3(lightpos.x, lightpos.y, lightpos.z), 
-	//	vec3(lightpos.x + lightDirection.x, lightpos.y + lightDirection.y, lightpos.z + lightDirection.z), // and looks at the origin
-	//	vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
-	//);
+	mat4 piz = mat4(1);
+	piz = rotate(piz, zAxRotationLamp, glm::vec3(0, 0, 1));
+	vec4 epic = piz * vec4(0,-1,0, 1);
+	cout << epic.x << " " << epic.y << " " << epic.z << endl;
+	cout << lightpos.x << " " << lightpos.y << " " << lightpos.z << endl;
+	cout << (lightpos.x + epic.x) << " " << (lightpos.y + epic.y) << " " << (lightpos.z + epic.z )<< endl;
+	cout << "---" << endl;
+	mat4 lightview = lookAt(
+		
+		vec3(lightpos.x, lightpos.y, lightpos.z), 
+		//vec3(lightpos.x + epic.x, lightpos.y + epic.y, lightpos.z + epic.z), // and looks at the origin
+		//vec3(lightpos.x + epic.x, lightpos.y + epic.y, lightpos.z + epic.z),
+		vec3(0,0,0),
+		vec3(0, -1, 0) //!!!!! if rotate world around x axis, this becomes up/down/up :(
+	);
+	////
+	////
+	////lightView = observerView;
 	//
-	//
-	//lightView = observerView;
-	
-	renderAllObjects(shadowMapProgram, observerView, true, modelIDshadow);
+	renderAllObjects(shadowMapProgram, lightview, true, modelIDshadow);
 
 	//bindScreenAsRenderTarget();
 	/* Modify our animation variables */
@@ -331,7 +343,7 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 		projection = perspective(30.0f, aspect_ratio, 0.1f, 100.0f);
 	}
 	else {
-		//projection = glm::ortho(-40, 40, -40, 40, -4, 4);
+		//projection = glm::ortho(-5, 5, -5, 5, -5, 5);
 		projection = perspective(30.0f, aspect_ratio, 0.1f, 100.0f);
 		
 	}
@@ -348,20 +360,7 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 		glUniformMatrix4fv(projectionIDshadow, 1, GL_FALSE, &projection[0][0]);
 	}
 
-	if (fromLightView) {
-		mat4 lightView = lookAt(
-			vec3(lightpos.x, lightpos.y, lightpos.z),
-			vec3(lightpos.x + lightDirection.x, lightpos.y + lightDirection.y, lightpos.z + lightDirection.z), // and looks at the origin
-			vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
-		);
-		
-		mat4 piz = mat4(1.0f);
-		piz = rotate(piz, -45.0f, vec3(0, 1, 0));
-		Line::drawLine(0, 100, 0, 0, 0, 0, "super", modelID, piz);
-	}
 
-	
-	//Line::drawLine(0, 3, 0, 0, 0, 0, "line1", modelID, glm::mat4(1));
 
 
 	// Define the global model transformations (rotate and scale). Note, we're not modifying thel ight source position
@@ -387,7 +386,21 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 	}
 	model.pop();
 
+	//CUBE small center
+	model.push(model.top());
+	{
+		model.top() = scale(model.top(), vec3(0.2, 0.2, 0.2));
+		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
 
+		if (!fromLightView) {
+			normalmatrix = transpose(inverse(mat3(view * model.top())));
+			glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+			glUniform1ui(objectTypeID, 6);
+		}
+
+		aCube.drawCube(drawmode);
+	}
+	model.pop();
 
 	// WIRE
 	model.push(model.top());
@@ -412,7 +425,8 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 	//LAMP and BULB transformations
 	model.push(model.top());
 	{
-		mat4 totalRotation = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
+		totalRotation = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
+		//totalRotation = rotate(mat4(1), zAxRotationLamp, glm::vec3(0, 0, 1));
 
 		model.top() = translate(model.top(), vec3(x, y + ceilingHeightAboveZero, z));
 		model.top() = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
@@ -456,8 +470,10 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 		model.push(model.top());
 		model.top() = translate(model.top(), vec3(0, 0.2, 0));
 		if (!fromLightView) {
-			lightpos = view * model.top() *  vec4(0, 0, 0, 1.0);//initially it was at 0, then depends on bulb's transformations
-			glUniform4fv(lightposID, 1, value_ptr(lightpos));
+			vec4 lightposToShader = view * model.top() *  vec4(0, 0, 0, 1.0);//initially it was at 0, then depends on bulb's transformations
+			glUniform4fv(lightposID, 1, value_ptr(lightposToShader));
+
+			lightpos = model.top() *  vec4(0, 0, 0, 1.0);
 		}
 		model.pop();
 
@@ -496,7 +512,7 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 		}
 		
 
-		aFloor.drawFloor(drawmode);
+		//aFloor.drawFloor(drawmode);
 	}
 	model.pop();
 

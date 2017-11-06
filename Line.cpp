@@ -83,7 +83,6 @@ void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, 
 	
 	if (allLines.find(name) == allLines.end()) {
 		Line l = Line();
-		cout << z0 << " " << z1 << endl;
 		l.makeLine(x0, x1, y0, y1, z0, z1);
 		allLines.insert(std::pair<string, Line>(name, l));
 	}
