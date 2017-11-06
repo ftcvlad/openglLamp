@@ -40,7 +40,7 @@ if you prefer */
 /* Define buffer object indices */
 GLuint elementbuffer;
 
-GLuint program;		/* Identifier for the shader prgoram */
+GLuint program, shadowMapProgram;		/* Identifier for the shader prgoram */
 GLuint vao;			/* Vertex array (Containor) object. This is the index of the VAO that will be the container for
 					   our buffer objects */
 
@@ -88,10 +88,14 @@ float swingStopCoefficient = 300.0;
 float swingT;
 
 
+GLuint modelIDshadow, viewIDshadow, projectionIDshadow;
+
 
 using namespace std;
 using namespace glm;
 
+void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLuint modelID);
+void createShadowMapTexture();
 /*
 This function is called before entering the main rendering loop.
 Use it for all your initialisation stuff
@@ -111,7 +115,7 @@ void init(GLWrapper *glw)
 	colourmode = 0; emitmode = 0;
 	numlats = 200;		// Number of latitudes in our sphere
 	numlongs = 200;		// Number of longitudes in our sphere
-	zAxRotationLamp = 65.0;
+	zAxRotationLamp = 0.0;
 
 	// Generate index (name) for one vertex array object
 	glGenVertexArrays(1, &vao);
@@ -123,6 +127,7 @@ void init(GLWrapper *glw)
 	try
 	{
 		program = glw->LoadShader("poslight.vert", "poslight.frag");
+		shadowMapProgram = glw->LoadShader("shadowMapTextureGen.vert", "shadowMapTextureGen.frag");
 	}
 	catch (exception &e)
 	{
@@ -140,6 +145,7 @@ void init(GLWrapper *glw)
 	//3 bulb glass
 	//4 lamp inner surface
 	//5 wire
+	//6 cube
 
 	emitmodeID = glGetUniformLocation(program, "emitmode");
 	viewID = glGetUniformLocation(program, "view");
@@ -148,12 +154,15 @@ void init(GLWrapper *glw)
 	normalmatrixID = glGetUniformLocation(program, "normalmatrix");
 	lightdirID = glGetUniformLocation(program, "lightdir");
 	
+	modelIDshadow = glGetUniformLocation(shadowMapProgram, "model");
+	viewIDshadow = glGetUniformLocation(shadowMapProgram, "view");
+	projectionIDshadow = glGetUniformLocation(shadowMapProgram, "projection");
 
 	/* create our sphere and cube objects */
 	aSphere.makeSphere(numlats, numlongs);
 	aLamp.makeLamp(40, 80);
 	aFloor.makeFloor();
-	//aCube.makeCube();
+	aCube.makeCube();
 	//aBulb.loadBulb();
 	aWire.makeWire(40,30);
 	swingT = 2 * PI * glm::sqrt(aWire.getWireLength() / g);
@@ -161,18 +170,69 @@ void init(GLWrapper *glw)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
+
+	createShadowMapTexture();
+
 }
 
+GLuint m_textureID = 0;
+GLuint m_frameBuffer = 0;
+void createShadowMapTexture() {
+	
+
+	glGenTextures(1, &m_textureID);
+	glBindTexture(GL_TEXTURE_2D, m_textureID);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, 1024, 1024, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE,0);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
 
 
-  
+	//----------buffers----------
+	GLenum drawBuffers[32];
+	
 
+	drawBuffers[0] = GL_NONE;
+	
+	glGenFramebuffers(1, &m_frameBuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_textureID, 0);
+
+	glDrawBuffers(1, drawBuffers);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+		std::cerr << "Framebuffer creation failed!" << std::endl;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+}
+
+void bindTextureAsRenderTarget() {
+	glBindTexture(GL_TEXTURE_2D, m_textureID);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_frameBuffer);
+	glViewport(0, 0, 1024, 1024);
+}
+
+void bindScreenAsRenderTarget() {
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, 1024, 768);//!!!!! check this later
+}
 
 void calcNewPendulumAngle() {
 	
 	if (previousT == NULL) previousT = clock();
 	currentT = clock();
-	t2 = t2 + (currentT - previousT);
+	t2 = t2 + (currentT - previousT);//to make
 
 	
 	zAxRotationLamp = glm::degrees(glm::radians(maxAngle)*cos(2 * PI / swingT * (t2 / swingTimeCoefficient)));
@@ -188,61 +248,122 @@ void calcNewPendulumAngle() {
 }
 
 
+///------------------------------------------------------------------------
+
+
+
 
 /* Called to update the display. Note that this function is called in the event loop in the wrapper
    class because we registered display as a callback function */
+vec4 lightpos;
+vec4 lightDirection;
 void display()
 {
-
-
+	bindTextureAsRenderTarget();
+	//bindScreenAsRenderTarget();//!
 	/* Define the background colour */
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
 	/* Clear the colour and frame buffers */
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_DEPTH_BUFFER_BIT);
 	/* Enable depth test  */
 	glEnable(GL_DEPTH_TEST);
 
-	/* Make the compiled shader program current */
-	glUseProgram(program);
-
-	// Define our model transformation in a stack and 
-	// push the identity matrix onto the stack
-	stack<mat4> model;
-	model.push(mat4(1.0f));
-
-	// Define the normal matrix
-	mat3 normalmatrix;
-
-	// Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
-	mat4 projection = perspective(30.0f, aspect_ratio, 0.1f, 100.0f);
-
-	// Camera matrix
-	mat4 view = lookAt(
+	//---------------------------------------------------------------
+	mat4 initialView = lookAt(
 		vec3(0, 0, 4), // Camera is at (0,0,4), in World Space
 		vec3(0, 0, 0), // and looks at the origin
 		vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
+	);
+
+
+	//RENDER TO SCREEN
+	mat4 observerView = rotate(initialView, -vx, vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
+	observerView = rotate(observerView, -vy, vec3(0, 1, 0)); //rotating in clockwise direction around y-axis
+	observerView = rotate(observerView, -vz, vec3(0, 0, 1));
+
+
+	renderAllObjects(program, observerView, false, modelID);
+	
+	
+	////RENDER TO SHADOWMAP
+
+
+	//bindTextureAsRenderTarget();
+	//glClear(GL_DEPTH_BUFFER_BIT);
+
+
+	bindScreenAsRenderTarget();//!
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	
+	
+
+	//mat4 lightView = lookAt(
+	//	vec3(lightpos.x, lightpos.y, lightpos.z), 
+	//	vec3(lightpos.x + lightDirection.x, lightpos.y + lightDirection.y, lightpos.z + lightDirection.z), // and looks at the origin
+	//	vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
+	//);
+	//
+	//
+	//lightView = observerView;
+	
+	renderAllObjects(shadowMapProgram, observerView, true, modelIDshadow);
+
+	//bindScreenAsRenderTarget();
+	/* Modify our animation variables */
+	angle_x += angle_inc_x;
+	angle_y += angle_inc_y;
+	angle_z += angle_inc_z;
+}
+
+GLuint ceilingHeightAboveZero = 3;
+void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLuint modelID) {
+	glUseProgram(currentProgram);
+
+
+	stack<mat4> model;
+	model.push(mat4(1.0f));
+	mat3 normalmatrix;
+	// Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
+	mat4 projection;
+	if (!fromLightView) {
+		projection = perspective(30.0f, aspect_ratio, 0.1f, 100.0f);
+	}
+	else {
+		//projection = glm::ortho(-40, 40, -40, 40, -4, 4);
+		projection = perspective(30.0f, aspect_ratio, 0.1f, 100.0f);
+		
+	}
+	
+
+	if (!fromLightView) {
+		glUniform1ui(colourmodeID, colourmode);
+		glUniform1ui(objectTypeID, objectType);
+		glUniformMatrix4fv(viewID, 1, GL_FALSE, &view[0][0]);
+		glUniformMatrix4fv(projectionID, 1, GL_FALSE, &projection[0][0]);
+	}
+	else {
+		glUniformMatrix4fv(viewIDshadow, 1, GL_FALSE, &view[0][0]);
+		glUniformMatrix4fv(projectionIDshadow, 1, GL_FALSE, &projection[0][0]);
+	}
+
+	if (fromLightView) {
+		mat4 lightView = lookAt(
+			vec3(lightpos.x, lightpos.y, lightpos.z),
+			vec3(lightpos.x + lightDirection.x, lightpos.y + lightDirection.y, lightpos.z + lightDirection.z), // and looks at the origin
+			vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
 		);
-
-	// Apply rotations to the view position. This wil get appleid to the whole scene
-	view = rotate(view, -vx, vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
-	view = rotate(view, -vy, vec3(0, 1, 0)); //rotating in clockwise direction around y-axis
-	view = rotate(view, -vz, vec3(0, 0, 1));
-
-	
-
-	// Send our projection and view uniforms to the currently bound shader
-	// I do that here because they are the same for all objects
-	glUniform1ui(colourmodeID, colourmode);
-	glUniform1ui(objectTypeID, objectType);
-	glUniformMatrix4fv(viewID, 1, GL_FALSE, &view[0][0]);
-	glUniformMatrix4fv(projectionID, 1, GL_FALSE, &projection[0][0]);
-	
-	
-	Line::drawLine(0, 3, 0, 0, 0, 0, "line1", modelID);
+		
+		mat4 piz = mat4(1.0f);
+		piz = rotate(piz, -45.0f, vec3(0, 1, 0));
+		Line::drawLine(0, 100, 0, 0, 0, 0, "super", modelID, piz);
+	}
 
 	
+	//Line::drawLine(0, 3, 0, 0, 0, 0, "line1", modelID, glm::mat4(1));
+
+
 	// Define the global model transformations (rotate and scale). Note, we're not modifying thel ight source position
 	model.top() = scale(model.top(), vec3(model_scale, model_scale, model_scale));//scale equally in all axis
 	model.top() = rotate(model.top(), -angle_x, glm::vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
@@ -250,42 +371,39 @@ void display()
 	model.top() = rotate(model.top(), -angle_z, glm::vec3(0, 0, 1)); //rotating in clockwise direction around z-axis
 
 
-	
-	//model.push(model.top());
-	//{
-	//	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-	//	normalmatrix = transpose(inverse(mat3(view * model.top())));
-	//	glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+	//CUBE
+	model.push(model.top());
+	{
+		model.top() = translate(model.top(), vec3(x - 1, y, z));
+		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
 
-	//	aCube.drawCube(drawmode);
-	//}
-	//model.pop();
+		if (!fromLightView) {
+			normalmatrix = transpose(inverse(mat3(view * model.top())));
+			glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+			glUniform1ui(objectTypeID, 6);
+		}
+		
+		aCube.drawCube(drawmode);
+	}
+	model.pop();
 
-	
 
 
-	
 	// WIRE
 	model.push(model.top());
 	{
-	
 		if (lampSwinging) {
 			calcNewPendulumAngle();
 		}
-		
-
-		model.top() = translate(model.top(), vec3(x, y + 1 + aWire.getWireLength(), z));
+		model.top() = translate(model.top(), vec3(x, y + ceilingHeightAboveZero, z));
 		model.top() = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
-		
-		
-
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+		if (!fromLightView) {
+			glUniform1ui(objectTypeID, 5);
+			normalmatrix = transpose(inverse(mat3(view * model.top())));
+			glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+		}
 		
-		glUniform1ui(objectTypeID, 5);
-		
-		normalmatrix = transpose(inverse(mat3(view * model.top())));
-		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
-
 		aWire.drawWire(drawmode);
 	}
 	model.pop();
@@ -294,20 +412,18 @@ void display()
 	//LAMP and BULB transformations
 	model.push(model.top());
 	{
-
 		mat4 totalRotation = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
-		
-		model.top() = translate(model.top(), vec3(x, y + 1 + aWire.getWireLength(), z));
+
+		model.top() = translate(model.top(), vec3(x, y + ceilingHeightAboveZero, z));
 		model.top() = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
-		model.top() = translate(model.top(), vec3(x, y- aWire.getWireLength(), z));
+		model.top() = translate(model.top(), vec3(x, y - aWire.getWireLength(), z));
+
+		if (!fromLightView) {
+			lightDirection = totalRotation * vec4(0, -1, 0, 1.0);//only model rotations apply
+			glUniform4fv(lightdirID, 1, value_ptr(lightDirection));
+		}
 		
 
-
-		vec4 lightDirection = totalRotation * vec4(0, -1, 0, 1.0);//only model rotations apply
-		
-		glUniform4fv(lightdirID, 1, value_ptr(lightDirection));
-
-		
 		
 	}
 
@@ -317,10 +433,11 @@ void display()
 		model.top() = scale(model.top(), vec3(0.5f, 0.5f, 0.5f));//scale equally in all axis
 
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-		glUniform1ui(objectTypeID, 1);
-		
-		normalmatrix = transpose(inverse(mat3(view * model.top())));
-		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+		if (!fromLightView) {
+			glUniform1ui(objectTypeID, 1);
+			normalmatrix = transpose(inverse(mat3(view * model.top())));
+			glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+		}
 
 		aLamp.drawLamp(drawmode, objectTypeID);
 	}
@@ -330,51 +447,37 @@ void display()
 	//BULB
 	model.push(model.top());
 	{
-		
+
 		model.top() = translate(model.top(), vec3(0, -0.4, 0));
 		model.top() = translate(model.top(), vec3(bulbMoveX, bulbMoveY, bulbMoveZ));
-		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
 		
 
-	
+		//calculate light position
+		model.push(model.top());
+		model.top() = translate(model.top(), vec3(0, 0.2, 0));
+		if (!fromLightView) {
+			lightpos = view * model.top() *  vec4(0, 0, 0, 1.0);//initially it was at 0, then depends on bulb's transformations
+			glUniform4fv(lightposID, 1, value_ptr(lightpos));
+		}
+		model.pop();
 
-		// Define the light position and transform by the view matrix
-		//vec4 lightpos = view * model.top() *  vec4(light_x, light_y, light_z, 1.0);
-		vec4 lightpos = view * model.top() *  vec4(0, 1, 0, 1.0);//initially it was at 0, then depends on bulb's transformations
-		glUniform4fv(lightposID, 1, value_ptr(lightpos));
-
-
-
-
-		model.top() = rotate(model.top(), 180.0f, glm::vec3(1, 0, 0)); //rotating in clockwise direction around x-axis
-																	   //model.top() = rotate(model.top(), -angle_y, glm::vec3(0, 1, 0)); //rotating in clockwise direction around y-axis
-																	   //model.top() = rotate(model.top(), -angle_z, glm::vec3(0, 0, 1)); //rotating in clockwise direction around z-axis
-
+		model.top() = scale(model.top(), vec3(0.2f, 0.2f, 0.2f));
+		model.top() = rotate(model.top(), 180.0f, glm::vec3(1, 0, 0)); 
+																	  
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-		normalmatrix = transpose(inverse(mat3(view * model.top())));
-		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
-
-		glUniform1ui(objectTypeID, 3);
+		if (!fromLightView) {
+			normalmatrix = transpose(inverse(mat3(view * model.top())));
+			glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+			glUniform1ui(objectTypeID, 3);
+		}
+		
 		//aBulb.drawBulb(drawmode, emitmodeID);
-
-
-
-
 	}
 	model.pop();
+
 	
-	Line::drawLine(0, 0, 0, 3, 0, 0, "line2", modelID);
-
-
-
-
 
 	model.pop();//lamp and bulb transformations
-
-
-
-	
-
 
 
 
@@ -382,30 +485,26 @@ void display()
 	model.push(model.top());
 	{
 
-		model.top() = translate(model.top(), vec3(x, y-0.5, z));
+		model.top() = translate(model.top(), vec3(x, y - 0.25 - 0.01, z));
 		model.top() = scale(model.top(), vec3(20, 1, 20));//death #1
 
 		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-		glUniform1ui(objectTypeID, 2);//floor
-
-		normalmatrix = transpose(inverse(mat3(view * model.top())));
-		glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+		if (!fromLightView) {
+			glUniform1ui(objectTypeID, 2);//floor
+			normalmatrix = transpose(inverse(mat3(view * model.top())));
+			glUniformMatrix3fv(normalmatrixID, 1, GL_FALSE, &normalmatrix[0][0]);
+		}
+		
 
 		aFloor.drawFloor(drawmode);
 	}
 	model.pop();
-	
 
-	
-	glDisableVertexAttribArray(0);
+
+
+	glDisableVertexAttribArray(0);//!!!!! don't pass colors, normals to shadowMap shaders
 	glUseProgram(0);
-
-	/* Modify our animation variables */
-	angle_x += angle_inc_x;
-	angle_y += angle_inc_y;
-	angle_z += angle_inc_z;
 }
-
 
 /* Called whenever the window is resized. The new window size is given, in pixels. */
 static void reshape(GLFWwindow* window, int w, int h)

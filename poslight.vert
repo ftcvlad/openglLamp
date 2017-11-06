@@ -53,10 +53,13 @@ void main()
 		lampInnerSurface = 1.0;
 	}	
 	else if (objectType == 2){//floor
-		diffuse_albedo = vec4(1,1,0,0.5);
+		diffuse_albedo = vec4(1,1,0,1);
 	}
 	else if (objectType == 3){
 		diffuse_albedo = vec4(colour.x, colour.y, colour.z, 1);
+	}
+	else if (objectType == 6){
+		diffuse_albedo = vec4(1,0,0,1);
 	}
 
 	

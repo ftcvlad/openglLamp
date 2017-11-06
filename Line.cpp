@@ -76,19 +76,21 @@ void Line::makeLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, 
 
 
 
-void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1, string name, GLuint modelID)
+void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1, string name, GLuint modelID, glm::mat4 trans)
 {
 
 	
 	
 	if (allLines.find(name) == allLines.end()) {
 		Line l = Line();
+		cout << z0 << " " << z1 << endl;
 		l.makeLine(x0, x1, y0, y1, z0, z1);
 		allLines.insert(std::pair<string, Line>(name, l));
 	}
 		
 	Line l = allLines[name];
 		
+	
 	
 	/* Draw the vertices as GL_POINTS */
 	glBindBuffer(GL_ARRAY_BUFFER, l.lineBufferObject);
@@ -112,7 +114,14 @@ void Line::drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, 
 	
 	glBindBuffer(GL_ARRAY_BUFFER, l.lineBufferObject);
 
-	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(glm::mat4(1)[0][0]));
+	
+
+
+		
+	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(trans[0][0]));
+	
+
+	
 	glDrawArrays(GL_LINES, 0, 6);
 
 

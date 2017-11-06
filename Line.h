@@ -18,7 +18,7 @@ public:
 	//void makeLamp(GLuint numlats, GLuint numlongs);
 	
 	void makeLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1);
-	static void drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1, std::string name, GLuint modelID);
+	static void drawLine(GLfloat x0, GLfloat x1, GLfloat y0, GLfloat y1, GLfloat z0, GLfloat z1, std::string name, GLuint modelID, glm::mat4 trans);
 
 private:
 	// Define vertex buffer object names (e.g as globals)
