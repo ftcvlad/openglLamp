@@ -20,6 +20,27 @@ vec3 specular_albedo = vec3(1.0, 0.8, 0.6);
 
 vec3 diffuse_albedo = vec3(0, 0.2, 0);
 
+varying vec4 shadowMapCoords0;
+uniform sampler2D shadowMap;
+
+
+float calcShadowAmount(){
+	vec3 shadowMapCoords0Transformed = (shadowMapCoords0.xyz / shadowMapCoords0.w)*vec3(0.5) + vec3(0.5);
+	
+	if (texture(shadowMap, shadowMapCoords0Transformed.xy).r == 0){
+		return 1;
+	}
+	else{
+		return 0;
+	}
+
+	//if (texture2D(shadowMap, shadowMapCoords0Transformed.xy).r < shadowMapCoords0Transformed.z){
+	//	return 0.0;
+	//}
+	//return 1.0;
+
+}
+
 void main()
 {
 
@@ -73,15 +94,14 @@ void main()
 		outputColor = vec4(attenuation*(ambient)+global_ambient+emissive, fcolour.w);
 	}
 
+	//outputColor = outputColor * calcShadowAmount();
 
-
-	
-	
-
-
-
-
-
-	
-	
+	float res = calcShadowAmount();
+	if (res == 0){
+		outputColor = vec4(0,1,0,1);
+	}
+	else{
+		outputColor = vec4(0,0,1,1);
+	}
+	//outputColor = calcShadowAmount();
 }

@@ -17,7 +17,6 @@ uniform mat4 model, view, projection;
 void main()
 {
 	vec4 position_h = vec4(position, 1.0);
-	//fcolour = vec4(1,0,0,1); 
 	fcolour = colour;
 	
 

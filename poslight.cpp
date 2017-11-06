@@ -60,7 +60,7 @@ GLuint numlats, numlongs;	//Define the resolution of the sphere object
 GLfloat bulbMoveX, bulbMoveY, bulbMoveZ;
 
 /* Uniforms*/
-GLuint modelID, viewID, projectionID, lightposID, normalmatrixID, lightdirID;
+GLuint modelID, viewID, projectionID, lightposID, normalmatrixID, lightdirID, VP_lightID, texID;
 GLuint colourmodeID, emitmodeID, objectTypeID;
 
 GLfloat aspect_ratio;		/* Aspect ratio of the window defined in the reshape callback*/
@@ -96,6 +96,9 @@ using namespace glm;
 
 void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLuint modelID);
 void createShadowMapTexture();
+
+GLuint m_textureID = 0;
+GLuint m_frameBuffer = 0;
 /*
 This function is called before entering the main rendering loop.
 Use it for all your initialisation stuff
@@ -153,6 +156,9 @@ void init(GLWrapper *glw)
 	lightposID = glGetUniformLocation(program, "lightpos");
 	normalmatrixID = glGetUniformLocation(program, "normalmatrix");
 	lightdirID = glGetUniformLocation(program, "lightdir");
+	VP_lightID = glGetUniformLocation(program, "VP_L");
+	texID = glGetUniformLocation(program, "shadowMap");
+
 	
 	modelIDshadow = glGetUniformLocation(shadowMapProgram, "model");
 	viewIDshadow = glGetUniformLocation(shadowMapProgram, "view");
@@ -173,10 +179,17 @@ void init(GLWrapper *glw)
 
 	createShadowMapTexture();
 
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, m_textureID);
+	
+	
+	
+
+
 }
 
-GLuint m_textureID = 0;
-GLuint m_frameBuffer = 0;
+
 void createShadowMapTexture() {
 	
 
@@ -260,8 +273,8 @@ vec4 lightDirection;
 mat4 totalRotation;
 void display()
 {
-	bindTextureAsRenderTarget();
-	//bindScreenAsRenderTarget();//!
+	//bindTextureAsRenderTarget();
+	bindScreenAsRenderTarget();
 	/* Define the background colour */
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -272,7 +285,7 @@ void display()
 	glEnable(GL_DEPTH_TEST);
 
 	//---------------------------------------------------------------
-	//cout << lightpos.x << " " << lightpos.y << " " << lightpos.z << endl;
+
 	mat4 initialView = lookAt(
 		vec3(0, 0, 4), // Camera is at (0,0,4), in World Space
 		vec3(0, 0, 0), // and looks at the origin
@@ -288,42 +301,37 @@ void display()
 
 	renderAllObjects(program, observerView, false, modelID);
 	
-	
-	//////RENDER TO SHADOWMAP
+	//---------------------------------------------------------------
+	//RENDER TO SHADOWMAP
 
 
-	////bindTextureAsRenderTarget();
-	////glClear(GL_DEPTH_BUFFER_BIT);
+	bindTextureAsRenderTarget();
+	glClear(GL_DEPTH_BUFFER_BIT);
 
-
-	bindScreenAsRenderTarget();//!
+	/*bindScreenAsRenderTarget();
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+	*/
 	
 
-	mat4 piz = mat4(1);
-	piz = rotate(piz, zAxRotationLamp, glm::vec3(0, 0, 1));
-	vec4 epic = piz * vec4(0,-1,0, 1);
-	cout << epic.x << " " << epic.y << " " << epic.z << endl;
-	cout << lightpos.x << " " << lightpos.y << " " << lightpos.z << endl;
-	cout << (lightpos.x + epic.x) << " " << (lightpos.y + epic.y) << " " << (lightpos.z + epic.z )<< endl;
-	cout << "---" << endl;
+	//mat4 lightview = lookAt(
+	//	
+	//	vec3(lightpos.x, lightpos.y, lightpos.z), 
+	//	//vec3(lightpos.x + epic.x, lightpos.y + epic.y, lightpos.z + epic.z), // and looks at the origin
+	//	//vec3(lightpos.x + epic.x, lightpos.y + epic.y, lightpos.z + epic.z),
+	//	vec3(0,0,0),
+	//	vec3(0, -1, 0) //!!!!! if rotate world around x axis, this becomes up/down/up :(
+	//);
+
 	mat4 lightview = lookAt(
-		
-		vec3(lightpos.x, lightpos.y, lightpos.z), 
-		//vec3(lightpos.x + epic.x, lightpos.y + epic.y, lightpos.z + epic.z), // and looks at the origin
-		//vec3(lightpos.x + epic.x, lightpos.y + epic.y, lightpos.z + epic.z),
+		vec3(0, 0, 7), 
 		vec3(0,0,0),
-		vec3(0, -1, 0) //!!!!! if rotate world around x axis, this becomes up/down/up :(
+		vec3(0, 1, 0)
 	);
-	////
-	////
-	////lightView = observerView;
-	//
+
 	renderAllObjects(shadowMapProgram, lightview, true, modelIDshadow);
 
-	//bindScreenAsRenderTarget();
-	/* Modify our animation variables */
+	bindScreenAsRenderTarget();
+
 	angle_x += angle_inc_x;
 	angle_y += angle_inc_y;
 	angle_z += angle_inc_z;
@@ -337,7 +345,7 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 	stack<mat4> model;
 	model.push(mat4(1.0f));
 	mat3 normalmatrix;
-	// Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
+	
 	mat4 projection;
 	if (!fromLightView) {
 		projection = perspective(30.0f, aspect_ratio, 0.1f, 100.0f);
@@ -354,6 +362,15 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 		glUniform1ui(objectTypeID, objectType);
 		glUniformMatrix4fv(viewID, 1, GL_FALSE, &view[0][0]);
 		glUniformMatrix4fv(projectionID, 1, GL_FALSE, &projection[0][0]);
+
+		mat4 lightview = lookAt(
+			vec3(0, 5, 0),
+			vec3(0, 0, 0),
+			vec3(0, -1, 0)
+		);
+		mat4 vp = projection * lightview;
+		glUniformMatrix4fv(VP_lightID, 1, GL_FALSE, &vp[0][0]);
+		glUniform1i(texID, 0);
 	}
 	else {
 		glUniformMatrix4fv(viewIDshadow, 1, GL_FALSE, &view[0][0]);
@@ -426,7 +443,7 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 	model.push(model.top());
 	{
 		totalRotation = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
-		//totalRotation = rotate(mat4(1), zAxRotationLamp, glm::vec3(0, 0, 1));
+		
 
 		model.top() = translate(model.top(), vec3(x, y + ceilingHeightAboveZero, z));
 		model.top() = rotate(model.top(), zAxRotationLamp, glm::vec3(0, 0, 1));
@@ -512,7 +529,7 @@ void renderAllObjects(GLuint currentProgram, mat4 view, bool fromLightView, GLui
 		}
 		
 
-		//aFloor.drawFloor(drawmode);
+		aFloor.drawFloor(drawmode);
 	}
 	model.pop();
 

@@ -26,12 +26,19 @@ out vec3 lightDirection;
 
 out float lampInnerSurface;
 
+//shadowmap
+uniform mat4 VP_L; 
+varying vec4 shadowMapCoords0;
+
 void main()
 {
-	
+	vec4 position_h = vec4(position, 1.0);	
+	//shadowmap
+	mat4 MVP_L = VP_L*model;
+	shadowMapCoords0 = MVP_L * position_h;
 
-	vec4 position_h = vec4(position, 1.0);	// Convert the (x,y,z) position to homogeneous coords (x,y,z,w)
-	vec4 diffuse_albedo;					// This is the vertex colour, used to handle the colourmode change
+	
+	vec4 diffuse_albedo;					
 	light_pos3 = lightpos.xyz;			
 	lightDirection = lightdir.xyz;
 
