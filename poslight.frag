@@ -27,7 +27,7 @@ uniform sampler2D shadowMap;
 float calcShadowAmount(){
 	vec3 shadowMapCoords0Transformed = (shadowMapCoords0.xyz / shadowMapCoords0.w)*vec3(0.5) + vec3(0.5);
 	
-	if (texture(shadowMap, shadowMapCoords0Transformed.xy).r == 0){
+	if (texture(shadowMap, shadowMapCoords0Transformed.xy).r == 0.0){
 		return 1;
 	}
 	else{
